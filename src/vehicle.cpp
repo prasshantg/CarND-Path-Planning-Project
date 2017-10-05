@@ -4,13 +4,21 @@
 double ref_vel = 0.0;
 int g_lane = 1;
 
-Map::Map(vector<double> x, vector<double> y, vector<double> s, vector<double> dx, vector<double> dy) {
+TrajectoryData::TrajectoryData(Vehicle *car) {
+  m_car = car;
+}
+
+TrajectoryData::~TrajectoryData(void) {}
+
+RouteMap::RouteMap(vector<double> x, vector<double> y, vector<double> s, vector<double> dx, vector<double> dy) {
   wp_x = x;
   wp_y = y;
   wp_s = s;
   wp_dx = dx;
   wp_dy = dy;
 }
+
+RouteMap::~RouteMap(void) {}
 
 Obstacle::Obstacle(double id, double x, double y, double vx, double vy, double s, double d) {
   o_id = id;
@@ -22,7 +30,9 @@ Obstacle::Obstacle(double id, double x, double y, double vx, double vy, double s
   o_d = d;
 }
 
-Vehicle::Vehicle(double x, double y, double s, double d, double yaw, double speed, Map *m) {
+Obstacle::~Obstacle(void) {}
+
+Vehicle::Vehicle(double x, double y, double s, double d, double yaw, double speed, RouteMap *m) {
   v_x = x;
   v_y = y;
   v_s = s;
@@ -31,29 +41,25 @@ Vehicle::Vehicle(double x, double y, double s, double d, double yaw, double spee
   v_speed = speed;
   v_map = m;
 
-  lane = g_lane;
+  m_lane = g_lane;
 }
 
-string Vehicle::get_next_state(void) {
-}
+Vehicle::~Vehicle(void) {}
 
-vector<vector<double>> Vehicle::generate_trajectory(void) {
+void TrajectoryData::update_trajectory_data(vector<vector<double>> path) {
   double car_s;
-  vector<vector<double>> next_vals;
 
-  car_s = v_s;
+  car_s = m_car->v_s;
 
   // if there are waypoints from previous path then start from end of that
-  if (prev_size > 2) {
-    car_s = end_pos[0];
+  if (m_car->prev_size > 2) {
+    car_s = m_car->end_pos[0];
   }
 
-  bool too_close = false;
-
-  for (Obstacle obj: sensor_fusion) {
+  for (Obstacle obj: m_car->sensor_fusion) {
     // car is in my lane
     float d = obj.o_d;
-    if (d < (2+4*lane+2) && d > (2+4*lane-2)) {
+    if (d < (2+4*m_proposed_lane+2) && d > (2+4*m_proposed_lane-2)) {
       double vx = obj.o_vx;
       double vy = obj.o_vy;
 
@@ -62,23 +68,49 @@ vector<vector<double>> Vehicle::generate_trajectory(void) {
 
       // if we are using previous path points, it means this car is also not at
       // at the end of path, calculate where would this car be at then end of path
-      check_car_s += ((double)prev_size*0.02*check_speed);
+      check_car_s += ((double)m_car->prev_size*0.02*check_speed);
       if ((check_car_s > car_s) && ((check_car_s-car_s)<30)) {
-        //ref_vel = 29.5;
-        too_close = true;
-        if (lane > 0) {
-          lane = 0;
-          g_lane = lane;
-        }
+        m_collide = true;
       }
     }
   }
+}
 
-  if (too_close) {
-    ref_vel -= 0.224;
-  } else if (ref_vel < 49.5) {
-    ref_vel += 0.224;
+vector<vector<double>> Vehicle::evaluate_trajectory(vector<TrajectoryData*> data) {
+
+  for (TrajectoryData *test : data) {
+    if (!test->m_collide && test->m_speed < 49.5) {
+      //cout << "Selected state = " << test->m_state << ", path len = " << test->m_path.size() << endl;
+      ref_vel = test->m_speed;
+      g_lane = test->m_proposed_lane;
+      return test->m_path;
+    }
   }
+
+  cout << "ERRROR no valid path found" << endl;
+  return data[0]->m_path;
+}
+
+// calculate proposed lane depending on current lane and proposed state
+void TrajectoryData::get_proposed_lane(string state, int current_lane) {
+
+  if (state == "LCL" && current_lane > 0) {
+    m_proposed_lane = current_lane - 1;
+  } else if (state == "LCR" && current_lane < 2) {
+    m_proposed_lane = current_lane + 1;
+  } else {
+    m_proposed_lane = current_lane;
+  }
+}
+
+TrajectoryData* Vehicle::generate_trajectory(string state, double target_x, int len, double vel) {
+
+  vector<vector<double>> next_vals;
+  TrajectoryData *t_data = new TrajectoryData(this);
+
+  t_data->get_proposed_lane(state, m_lane);
+  t_data->m_speed = vel;
+  t_data->m_state = state;
 
   // create a list of widely spaced (x,y) waypoints, evenly spaced at 30m
   // Later we will interpolate these with a spline and fill it in with more points that control speed
@@ -116,17 +148,11 @@ vector<vector<double>> Vehicle::generate_trajectory(void) {
     ptsy.push_back(ref_y);
   }
 
-  vector<double> next_wp0 = getXY(v_s+30, (2+4*lane), v_map->wp_s, v_map->wp_x, v_map->wp_y);
-  vector<double> next_wp1 = getXY(v_s+60, (2+4*lane), v_map->wp_s, v_map->wp_x, v_map->wp_y);
-  vector<double> next_wp2 = getXY(v_s+90, (2+4*lane), v_map->wp_s, v_map->wp_x, v_map->wp_y);
-
-  ptsx.push_back(next_wp0[0]);
-  ptsx.push_back(next_wp1[0]);
-  ptsx.push_back(next_wp2[0]);
-
-  ptsy.push_back(next_wp0[1]);
-  ptsy.push_back(next_wp1[1]);
-  ptsy.push_back(next_wp2[1]);
+  for (int i = 0; i < len; i++) {
+    vector<double> next_wp = getXY(v_s+target_x*(i+1), (2+4*t_data->m_proposed_lane), v_map->wp_s, v_map->wp_x, v_map->wp_y);
+    ptsx.push_back(next_wp[0]);
+    ptsy.push_back(next_wp[1]);
+  }
 
   //shift car reference angle to 0 degrees
   for (int i = 0; i < ptsx.size(); i++) {
@@ -149,16 +175,15 @@ vector<vector<double>> Vehicle::generate_trajectory(void) {
   }
 
   //calculate how to break up spline points so that we travel at our desired reference velocity
-  double target_x = 30.0;
   double target_y = s(target_x);
   double target_dist = sqrt((target_x*target_x)+(target_y*target_y));
 
   double x_add_on = 0;
-  // distance = N * 0.02 * ref_vel
+  // distance = N * 0.02 * vel
   // N = number of points
   // 0.02 = simulator car visits each point in 20ms
-  // ref_vel = Target velocity
-  double N = (target_dist/(0.02*ref_vel/2.24));
+  // vel = Target velocity
+  double N = (target_dist/(0.02*vel/2.24));
   double step_size = target_x/N;
 
   for (int i = 0; i <= 50 - previous_path.size(); i++) {
@@ -183,6 +208,40 @@ vector<vector<double>> Vehicle::generate_trajectory(void) {
 
     next_vals.push_back(state);
   }
-  return next_vals;
+
+  t_data->m_path = next_vals;
+  t_data->update_trajectory_data(next_vals);
+
+  return t_data;
 }
 
+vector<vector<double>> Vehicle::get_path(void) {
+  TrajectoryData *path;
+  vector<TrajectoryData*> proposed_paths;
+  vector<string> states = {"KL", "LCL", "LCR", "PLCL", "PLCR"};
+  vector<vector<double>> valid_path;
+
+  path = this->generate_trajectory(states[0], 30.0, 3, ref_vel+0.224);
+  proposed_paths.push_back(path);
+  path = this->generate_trajectory(states[0], 30.0, 3, ref_vel);
+  proposed_paths.push_back(path);
+  path = this->generate_trajectory(states[1], 30.0, 3, ref_vel);
+  proposed_paths.push_back(path);
+  path = this->generate_trajectory(states[2], 30.0, 3, ref_vel);
+  proposed_paths.push_back(path);
+  path = this->generate_trajectory(states[0], 30.0, 3, ref_vel-0.224);
+  proposed_paths.push_back(path);
+
+  vector<vector<double>> next_vals = this->evaluate_trajectory(proposed_paths);
+
+  for (int i = 0; i < next_vals.size(); i++) {
+    valid_path.push_back(next_vals[i]);
+  }
+
+  for (int i = 0; i < proposed_paths.size(); i++) {
+    path = proposed_paths[i];
+    free(path);
+  }
+
+  return valid_path;
+}

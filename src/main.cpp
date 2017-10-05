@@ -213,7 +213,7 @@ int main() {
         // j[1] is the data JSON object
 
         // Main car's localization Data
-        Map v_map = Map(map_waypoints_x,map_waypoints_y,map_waypoints_s,map_waypoints_dx,map_waypoints_dy);
+        RouteMap v_map = RouteMap(map_waypoints_x,map_waypoints_y,map_waypoints_s,map_waypoints_dx,map_waypoints_dy);
 
         Vehicle car = Vehicle(j[1]["x"], j[1]["y"], j[1]["s"], j[1]["d"], j[1]["yaw"], j[1]["speed"], &v_map);
         vector<vector<double>> previous_path;
@@ -226,6 +226,7 @@ int main() {
           vector<double> state = {previous_path_x[i], previous_path_y[i]};
           car.previous_path.push_back(state);
         }
+        car.prev_size = car.previous_path.size();
 
         // Previous path's end s and d values 
         car.end_pos = {j[1]["end_path_s"], j[1]["end_path_d"]};
@@ -238,16 +239,13 @@ int main() {
           car.sensor_fusion.push_back(obj);
         }
 
-        car.prev_size = car.previous_path.size();
-
         json msgJson;
-
 
         // TODO: define a path made up of (x,y) points that the car will visit sequentially every .02 seconds
         vector<double> next_x_vals;
         vector<double> next_y_vals;
 
-        vector<vector<double>> trajectory = car.generate_trajectory();
+        vector<vector<double>> trajectory = car.get_path();
 
         for (vector<double> next_vals : trajectory) {
           next_x_vals.push_back(next_vals[0]);
