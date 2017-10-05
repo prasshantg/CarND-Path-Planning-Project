@@ -48,8 +48,12 @@ Vehicle::~Vehicle(void) {}
 
 void TrajectoryData::update_trajectory_data(vector<vector<double>> path) {
   double car_s;
+  vector<double> accels;
+  vector<double> jerks;
 
+  m_path = path;
   car_s = m_car->v_s;
+  m_collide = false;
 
   // if there are waypoints from previous path then start from end of that
   if (m_car->prev_size > 2) {
@@ -67,8 +71,9 @@ void TrajectoryData::update_trajectory_data(vector<vector<double>> path) {
       double check_car_s = obj.o_s;
 
       // if we are using previous path points, it means this car is also not at
-      // at the end of path, calculate where would this car be at then end of path
+      // at the end of path, calculate where would this car be at the end of path
       check_car_s += ((double)m_car->prev_size*0.02*check_speed);
+
       if ((check_car_s > car_s) && ((check_car_s-car_s)<30)) {
         m_collide = true;
       }
@@ -76,19 +81,59 @@ void TrajectoryData::update_trajectory_data(vector<vector<double>> path) {
   }
 }
 
+string last_state = "KL";
+
 vector<vector<double>> Vehicle::evaluate_trajectory(vector<TrajectoryData*> data) {
+  TrajectoryData* next_path = NULL;
 
   for (TrajectoryData *test : data) {
     if (!test->m_collide && test->m_speed < 49.5) {
       //cout << "Selected state = " << test->m_state << ", path len = " << test->m_path.size() << endl;
-      ref_vel = test->m_speed;
-      g_lane = test->m_proposed_lane;
-      return test->m_path;
+      next_path = test;
+      break;
+//      return test->m_path;
     }
   }
 
-  cout << "ERRROR no valid path found" << endl;
-  return data[0]->m_path;
+  if (next_path == NULL) {
+    goto not_found;
+  }
+
+  if (next_path->m_state == "LCL" && next_path->m_speed > 40) {
+    for (TrajectoryData *test : data) {
+      if (test->m_state == "PLCL") {
+        next_path = test;
+        break;
+      }
+    }
+  } else if (next_path->m_state == "LCR" && next_path->m_speed > 40) {
+    for (TrajectoryData *test : data) {
+      if (test->m_state == "PLCR") {
+        next_path = test;
+        break;
+      }
+    }
+  }
+
+not_found:
+  if (next_path == NULL) {
+    cout << "ERRROR no valid path found" << endl;
+    for (TrajectoryData *test : data) {
+      cout << test->m_state << ": speed = " << test->m_speed << ", collide = " << test->m_collide << ", lane = " << test->m_proposed_lane << endl;
+    }
+    next_path = data[4];
+  }
+
+  if (next_path->m_state == "LCR" || next_path->m_state == "LCL" || last_state == "LCL" || last_state == "LCR") {
+    cout << next_path->m_state << ": speed = " << next_path->m_speed << ", collide = " << next_path->m_collide << ", lane = " << next_path->m_proposed_lane << endl;
+  }
+
+  ref_vel = next_path->m_speed;
+  g_lane = next_path->m_proposed_lane;
+
+  last_state = next_path->m_state;
+
+  return next_path->m_path;
 }
 
 // calculate proposed lane depending on current lane and proposed state
@@ -196,7 +241,7 @@ TrajectoryData* Vehicle::generate_trajectory(string state, double target_x, int 
     double x_ref = x_point;
     double y_ref = y_point;
 
-    // rotate back to normal after ratating it earlier
+    // rotate back to normal after rotating it earlier
     x_point = (x_ref*cos(ref_yaw)-y_ref*sin(ref_yaw));
     y_point = (x_ref*sin(ref_yaw)+y_ref*cos(ref_yaw));
 
@@ -209,7 +254,6 @@ TrajectoryData* Vehicle::generate_trajectory(string state, double target_x, int 
     next_vals.push_back(state);
   }
 
-  t_data->m_path = next_vals;
   t_data->update_trajectory_data(next_vals);
 
   return t_data;
@@ -230,6 +274,10 @@ vector<vector<double>> Vehicle::get_path(void) {
   path = this->generate_trajectory(states[2], 30.0, 3, ref_vel);
   proposed_paths.push_back(path);
   path = this->generate_trajectory(states[0], 30.0, 3, ref_vel-0.224);
+  proposed_paths.push_back(path);
+  path = this->generate_trajectory(states[3], 30.0, 3, ref_vel-0.224);
+  proposed_paths.push_back(path);
+  path = this->generate_trajectory(states[4], 30.0, 3, ref_vel-0.224);
   proposed_paths.push_back(path);
 
   vector<vector<double>> next_vals = this->evaluate_trajectory(proposed_paths);
