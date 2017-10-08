@@ -96,7 +96,7 @@ public:
   virtual ~Vehicle();
 
   vector<vector<double>> get_path(void);
-  TrajectoryData* generate_trajectory(string state, double target_x, int len, double vel);
+  TrajectoryData* generate_trajectory(string state, double target_x, vector<double> wps, double vel);
   vector<vector<double>> evaluate_trajectory(vector<TrajectoryData*> data);
 };
 

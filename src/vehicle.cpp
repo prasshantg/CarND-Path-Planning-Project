@@ -60,6 +60,9 @@ void TrajectoryData::update_trajectory_data(vector<vector<double>> path) {
     car_s = m_car->end_pos[0];
   }
 
+  double car_s1;
+  double car_s2;
+
   for (Obstacle obj: m_car->sensor_fusion) {
     // car is in my lane
     float d = obj.o_d;
@@ -99,14 +102,14 @@ vector<vector<double>> Vehicle::evaluate_trajectory(vector<TrajectoryData*> data
     goto not_found;
   }
 
-  if (next_path->m_state == "LCL" && next_path->m_speed > 40) {
+  if (next_path->m_state == "LCL" && next_path->m_speed > 30) {
     for (TrajectoryData *test : data) {
       if (test->m_state == "PLCL") {
         next_path = test;
         break;
       }
     }
-  } else if (next_path->m_state == "LCR" && next_path->m_speed > 40) {
+  } else if (next_path->m_state == "LCR" && next_path->m_speed > 30) {
     for (TrajectoryData *test : data) {
       if (test->m_state == "PLCR") {
         next_path = test;
@@ -148,7 +151,7 @@ void TrajectoryData::get_proposed_lane(string state, int current_lane) {
   }
 }
 
-TrajectoryData* Vehicle::generate_trajectory(string state, double target_x, int len, double vel) {
+TrajectoryData* Vehicle::generate_trajectory(string state, double target_x, vector<double>wps, double vel) {
 
   vector<vector<double>> next_vals;
   TrajectoryData *t_data = new TrajectoryData(this);
@@ -193,8 +196,8 @@ TrajectoryData* Vehicle::generate_trajectory(string state, double target_x, int 
     ptsy.push_back(ref_y);
   }
 
-  for (int i = 0; i < len; i++) {
-    vector<double> next_wp = getXY(v_s+target_x*(i+1), (2+4*t_data->m_proposed_lane), v_map->wp_s, v_map->wp_x, v_map->wp_y);
+  for (double wp : wps) {
+    vector<double> next_wp = getXY(v_s+wp, (2+4*t_data->m_proposed_lane), v_map->wp_s, v_map->wp_x, v_map->wp_y);
     ptsx.push_back(next_wp[0]);
     ptsy.push_back(next_wp[1]);
   }
@@ -264,20 +267,22 @@ vector<vector<double>> Vehicle::get_path(void) {
   vector<TrajectoryData*> proposed_paths;
   vector<string> states = {"KL", "LCL", "LCR", "PLCL", "PLCR"};
   vector<vector<double>> valid_path;
+  vector<double> wps1 = {30,60,90};
+  vector<double> wps2 = {60,75,90};
 
-  path = this->generate_trajectory(states[0], 30.0, 3, ref_vel+0.224);
+  path = this->generate_trajectory(states[0], 30.0, wps1, ref_vel+0.224);
   proposed_paths.push_back(path);
-  path = this->generate_trajectory(states[0], 30.0, 3, ref_vel);
+  path = this->generate_trajectory(states[0], 30.0, wps1, ref_vel);
   proposed_paths.push_back(path);
-  path = this->generate_trajectory(states[1], 30.0, 3, ref_vel);
+  path = this->generate_trajectory(states[1], 30.0, wps2, ref_vel);
   proposed_paths.push_back(path);
-  path = this->generate_trajectory(states[2], 30.0, 3, ref_vel);
+  path = this->generate_trajectory(states[2], 30.0, wps2, ref_vel);
   proposed_paths.push_back(path);
-  path = this->generate_trajectory(states[0], 30.0, 3, ref_vel-0.224);
+  path = this->generate_trajectory(states[0], 30.0, wps1, ref_vel-0.224);
   proposed_paths.push_back(path);
-  path = this->generate_trajectory(states[3], 30.0, 3, ref_vel-0.224);
+  path = this->generate_trajectory(states[3], 30.0, wps1, ref_vel-0.224);
   proposed_paths.push_back(path);
-  path = this->generate_trajectory(states[4], 30.0, 3, ref_vel-0.224);
+  path = this->generate_trajectory(states[4], 30.0, wps1, ref_vel-0.224);
   proposed_paths.push_back(path);
 
   vector<vector<double>> next_vals = this->evaluate_trajectory(proposed_paths);
