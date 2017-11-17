@@ -11,24 +11,49 @@
 5. It should take a little over 5 minutes to complete 1 loop.
 6. Car should not experience total acceleration over 10 m/s^2 and jerk that is greater than 50 m/s^3.
 
-## Approach
+## How it works?
 
-Generate multiple possible trajectories
-  - Keep lane, accelerate
-  - Keep lane, deaccelerate
-  - Keep lane, same speed
-  - Change lane, accelerate
-  - Change lane, deaccelerate
-  - Change lane, same speed
+  - Car drive in lane to reach the goal and maximum speed it can be go upto 49.5 mph.
+  - If there is other car in lane and blocking the movement of car, then car will see if there is available lane to change. If yes, then car will keep the speed and change the lane.
+  - If there is no other lane available for change, car will slow down its speed in current lane to avoid collision.
 
-Also, used different spline points to get smooth trajectory for different situation.
+## Implementation
 
-After that eveluate these trajectories for different criterias such as collision, speed etc. Currently using checks for evaluating but cost functions can also be used.
+File : vehicle.cpp
+     This file implements functions to get path for the car. It proposes multiple paths, evaluates all proposed paths and then selects the path safe to drive.
+
+Four classes for keeping driving data
+  - TrajectoryData - Trajectory specific data, referred to evaluate a trajectory
+  - RouteMap - Waypoint information
+  - Obstacle - Information of other vehicles on road
+  - Vehicle - Information of ego car
+
+get_path function
+  - Generates multiple possible paths (function: generate_trajectory)
+     - Keep lane, accelerate
+     - Keep lane, same speed
+     - Keep lane, deaccelerate
+     - Change lane, accelerate
+     - Change lane, deaccelerate
+     - Change lane, same speed
+     - Different spline points
+  - Evaluates all proposed paths for (function: evaluate_trajectory)
+     - Collision
+     - Max velocity
+  - If no path found then keep same lane and deaccelerate
+
+Generating trajectory
+  - Get proposed lane for the trajectory
+  - If there are more than 2 waypoints in previous path then append those waypoints for current path
+  - Used spline to get smoother points for the proposed trajectory
+
+Collision detection
+  - Using velocity for proposed path and other object velocity, check for all waypoints that ego vehicle and other car is not in close distance
 
 ## Result
 
 ### Observation
-  - Car able to driver safely, maximul distance travelled > 9 mile without any incidence
+  - Car able to drive safely, maximum distance travelled > 9 mile without any incidence
   - Takes ~5-6 mins for one loop
   - Able to change lane smoothly
   - Able to slow down or change lane when collision detected
@@ -36,4 +61,5 @@ After that eveluate these trajectories for different criterias such as collision
 ### Improvements
   - Use cost functions
   - More intelligent lane switching
+  - Multi-lane switching
 
