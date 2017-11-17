@@ -56,9 +56,9 @@ void TrajectoryData::update_trajectory_data(vector<vector<double>> path) {
   m_collide = false;
 
   // if there are waypoints from previous path then start from end of that
-  if (m_car->prev_size > 2) {
-    car_s = m_car->end_pos[0];
-  }
+  //if (m_car->prev_size > 2) {
+  //  car_s = m_car->end_pos[0];
+  //}
 
   double car_s1;
   double car_s2;
@@ -77,8 +77,15 @@ void TrajectoryData::update_trajectory_data(vector<vector<double>> path) {
       // at the end of path, calculate where would this car be at the end of path
       check_car_s += ((double)m_car->prev_size*0.02*check_speed);
 
-      if ((check_car_s > car_s) && ((check_car_s-car_s)<30)) {
-        m_collide = true;
+      for (int i = 0; i < path.size(); i++) {
+        double ego_s;
+        double other_s;
+
+        ego_s = car_s + (i * 0.02 * m_car->v_speed);
+        other_s = check_car_s + (i * 0.02 * check_speed);
+        if ((other_s > ego_s) && ((other_s-ego_s)<30)) {
+          m_collide = true;
+        }
       }
     }
   }
