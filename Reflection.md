@@ -28,7 +28,7 @@ Four classes for keeping driving data
   - Obstacle - Information of other vehicles on road
   - Vehicle - Information of ego car
 
-get_path function
+get_path function returns the path to follow
   - Generates multiple possible paths (function: generate_trajectory)
      - Keep lane, accelerate
      - Keep lane, same speed
@@ -44,11 +44,13 @@ get_path function
 
 Generating trajectory
   - Get proposed lane for the trajectory
-  - If there are more than 2 waypoints in previous path then append those waypoints for current path
+  - The implementation is same as explained in project Q & A. it starts the new path with whatever previous path points were left over from the last cycle. Then append new waypoints, until the new path has 50 total waypoints. Using information from the previous path ensures that there is a smooth transition from cycle to cycle. But the more waypoints we use from the previous path, the less the new path will reflect dynamic changes in the environment. we used only last waypoint from the previous path and then generate the rest of the new path based on new data from the car sensor fusion information.
+  - Frenet coordinate are used to add 30 evenly spaced points ahead of the start points using getXY() helper function. And before calculation we transform the coordinate into car coordinates. At the end, before sending next x, next y values to simulator, it rotate back to normal after rotating it earlier.
   - Used spline to get smoother points for the proposed trajectory
 
 Collision detection
   - Using velocity for proposed path and other object velocity, check for all waypoints that ego vehicle and other car is not in close distance
+  - It checks for vehicle in front and behind
 
 ## Result
 
