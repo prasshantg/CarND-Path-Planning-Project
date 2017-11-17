@@ -83,7 +83,7 @@ void TrajectoryData::update_trajectory_data(vector<vector<double>> path) {
 
         ego_s = car_s + (i * 0.02 * m_car->v_speed);
         other_s = check_car_s + (i * 0.02 * check_speed);
-        if ((other_s > ego_s) && ((other_s-ego_s)<30)) {
+        if ((other_s > ego_s) && ((other_s-ego_s)<50)) {
           m_collide = true;
         }
       }
